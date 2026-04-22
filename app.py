@@ -73,15 +73,10 @@ def detect_language(question: str) -> str:
         return "Hungarian"
     return "English"
 
-
 class InsuranceRAG:
     def __init__(self) -> None:
-        self.embeddings = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
-        self.vectorstore = Chroma(
-            collection_name="insurance_docs",
-            embedding_function=self.embeddings,
-            persist_directory=str(CHROMA_DIR),
-        )
+        self.embeddings = None
+        self.vectorstore = None
 
         self.openai_llm = None
         if os.getenv("OPENAI_API_KEY"):
@@ -96,9 +91,23 @@ class InsuranceRAG:
             temperature=0.1,
         )
 
+    def get_embeddings(self):
+        if self.embeddings is None:
+            self.embeddings = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
+        return self.embeddings
+
+    def get_vectorstore(self):
+        if self.vectorstore is None:
+            self.vectorstore = Chroma(
+                collection_name="insurance_docs",
+                embedding_function=self.get_embeddings(),
+                persist_directory=str(CHROMA_DIR),
+            )
+        return self.vectorstore
+
     def has_index(self) -> bool:
         try:
-            return int(self.vectorstore._collection.count()) > 0  # noqa: SLF001
+            return int(self.get_vectorstore()._collection.count()) > 0  # noqa: SLF001
         except Exception:
             return False
 
@@ -119,10 +128,10 @@ class InsuranceRAG:
         if not chunks:
             raise RuntimeError("No chunks extracted from PDFs.")
 
-        self.vectorstore.delete_collection()
+        self.get_vectorstore().delete_collection()
         self.vectorstore = Chroma.from_documents(
             documents=chunks,
-            embedding=self.embeddings,
+            embedding=self.get_embeddings(),
             collection_name="insurance_docs",
             persist_directory=str(CHROMA_DIR),
         )
@@ -147,7 +156,7 @@ class InsuranceRAG:
         q = self._normalize_query(question)
         # Use raw score API and normalize ourselves.
         candidate_k = min(max(top_k * 4, top_k), 32)
-        raw = self.vectorstore.similarity_search_with_score(q, k=candidate_k)
+        raw = self.get_vectorstore().similarity_search_with_score(q, k=candidate_k)
         if not raw:
             return []
 
