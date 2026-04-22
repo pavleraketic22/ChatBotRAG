@@ -22,16 +22,24 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 CHROMA_DIR = BASE_DIR / "chroma_db"
 
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
+EMBEDDING_MODEL = st.secrets.get("EMBEDDING_MODEL", os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large"))
+
+OPENAI_MODEL = st.secrets.get("OPENAI_MODEL", os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
+
+OPENAI_BASE_URL = st.secrets.get("OPENAI_BASE_URL", os.getenv("OPENAI_BASE_URL"))
+
 OPENAI_FALLBACK_MODELS = [
     m.strip()
-    for m in os.getenv("OPENAI_FALLBACK_MODELS", "gpt-4o-mini,gpt-4o,gpt-3.5-turbo").split(",")
+    for m in st.secrets.get(
+        "OPENAI_FALLBACK_MODELS",
+        os.getenv("OPENAI_FALLBACK_MODELS", "gpt-4o-mini,gpt-4o,gpt-3.5-turbo")
+    ).split(",")
     if m.strip()
 ]
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+OLLAMA_MODEL = st.secrets.get("OLLAMA_MODEL", os.getenv("OLLAMA_MODEL", "gemma3:4b"))
+
+OLLAMA_BASE_URL = st.secrets.get("OLLAMA_BASE_URL", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
 
 ProviderMode = Literal["Auto", "OpenAI only", "Ollama only", "Extractive only"]
 
