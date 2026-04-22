@@ -24,9 +24,10 @@ CHROMA_DIR = BASE_DIR / "chroma_db"
 
 EMBEDDING_MODEL = st.secrets.get("EMBEDDING_MODEL", os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large"))
 
-OPENAI_MODEL = st.secrets.get("OPENAI_MODEL", os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
-
-OPENAI_BASE_URL = st.secrets.get("OPENAI_BASE_URL", os.getenv("OPENAI_BASE_URL"))
+OPENAI = st.secrets.get("openai", {})
+OPENAI_API_KEY = OPENAI.get("api_key", os.getenv("OPENAI_API_KEY"))
+OPENAI_BASE_URL = OPENAI.get("base_url", os.getenv("OPENAI_BASE_URL"))
+OPENAI_MODEL = OPENAI.get("model", os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
 
 OPENAI_FALLBACK_MODELS = [
     m.strip()
@@ -87,10 +88,21 @@ class InsuranceRAG:
         self.vectorstore = None
 
         self.openai_llm = None
-        if os.getenv("OPENAI_API_KEY"):
-            kwargs = {"model": OPENAI_MODEL, "temperature": 0.1}
+        openai_key = (
+                st.secrets.get("openai", {}).get("api_key")
+                or os.getenv("OPENAI_API_KEY")
+        )
+
+        if openai_key:
+            kwargs = {
+                "model": OPENAI_MODEL,
+                "temperature": 0.1,
+                "openai_api_key": openai_key,
+            }
+
             if OPENAI_BASE_URL:
                 kwargs["base_url"] = OPENAI_BASE_URL
+
             self.openai_llm = ChatOpenAI(**kwargs)
 
         self.ollama_llm = ChatOllama(
