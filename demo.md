@@ -7,7 +7,7 @@ Use the following queries after indexing the 3 PDFs in `data/`.
 1. Start app:
 
 ```bash
-python -m streamlit run chat.py
+python -m streamlit run app.py
 ```
 
 2. In UI:

@@ -93,7 +93,7 @@ data/
 ## 5) Run the app
 
 ```bash
-python -m streamlit run chat.py
+python -m streamlit run app.py
 ```
 
 Then in sidebar:
