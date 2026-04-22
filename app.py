@@ -32,7 +32,7 @@ OPENAI_FALLBACK_MODELS = [
 ]
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-
+OPENAI_API_KEY = st.secrets.get("api_key")
 ProviderMode = Literal["Auto", "OpenAI only", "Ollama only", "Extractive only"]
 
 
