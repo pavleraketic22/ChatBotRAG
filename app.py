@@ -22,25 +22,16 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 CHROMA_DIR = BASE_DIR / "chroma_db"
 
-EMBEDDING_MODEL = st.secrets.get("EMBEDDING_MODEL", os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large"))
-
-OPENAI = st.secrets.get("openai", {})
-OPENAI_API_KEY = OPENAI.get("api_key", os.getenv("OPENAI_API_KEY"))
-OPENAI_BASE_URL = OPENAI.get("base_url", os.getenv("OPENAI_BASE_URL"))
-OPENAI_MODEL = OPENAI.get("model", os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
-
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
 OPENAI_FALLBACK_MODELS = [
     m.strip()
-    for m in st.secrets.get(
-        "OPENAI_FALLBACK_MODELS",
-        os.getenv("OPENAI_FALLBACK_MODELS", "gpt-4o-mini,gpt-4o,gpt-3.5-turbo")
-    ).split(",")
+    for m in os.getenv("OPENAI_FALLBACK_MODELS", "gpt-4o-mini,gpt-4o,gpt-3.5-turbo").split(",")
     if m.strip()
 ]
-
-OLLAMA_MODEL = st.secrets.get("OLLAMA_MODEL", os.getenv("OLLAMA_MODEL", "gemma3:4b"))
-
-OLLAMA_BASE_URL = st.secrets.get("OLLAMA_BASE_URL", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 ProviderMode = Literal["Auto", "OpenAI only", "Ollama only", "Extractive only"]
 
@@ -88,16 +79,11 @@ class InsuranceRAG:
         self.vectorstore = None
 
         self.openai_llm = None
-        openai_cfg = st.secrets.get("openai", {})
-
-        openai_key = openai_cfg.get("api_key") or os.getenv("OPENAI_API_KEY")
-
-        if openai_key:
-            self.openai_llm = ChatOpenAI(
-                model=openai_cfg.get("model", OPENAI_MODEL),
-                temperature=0.1,
-                api_key=openai_key,
-            )
+        if os.getenv("OPENAI_API_KEY"):
+            kwargs = {"model": OPENAI_MODEL, "temperature": 0.1}
+            if OPENAI_BASE_URL:
+                kwargs["base_url"] = OPENAI_BASE_URL
+            self.openai_llm = ChatOpenAI(**kwargs)
 
         self.ollama_llm = ChatOllama(
             model=OLLAMA_MODEL,
