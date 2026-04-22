@@ -149,6 +149,10 @@ Alternative models:
 
 4. Open **Retrieved evidence** panel to inspect source/page and relevance.
 
+For formal project deliverables, see:
+- `demo.md` (document-specific Q&A demonstrations)
+- `evaluation.md` (accuracy/relevance/latency evaluation proposal)
+
 ---
 
 ## 9) Troubleshooting
@@ -185,6 +189,8 @@ curl https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
 ## 10) Files and directories
 
 - `chat.py` - main Streamlit app (LangChain + Chroma)
+- `demo.md` - demonstration queries and expected evidence-backed outcomes
+- `evaluation.md` - evaluation proposal and metrics
 - `data/` - source PDFs
 - `chroma_db/` - local vector DB persistence
 - `.env` - local secrets/config (not committed)
