@@ -1,14 +1,27 @@
-# Car Insurance RAG Chatbot
+# ChatBotRAG (LangChain + ChromaDB)
 
-Retrieval-augmented chatbot for car insurance Q&A over three PDF sources:
+Practical RAG chatbot for car-insurance documents.
 
-- MTPL Product Info
-- User Regulations
-- Terms & Conditions
+This project uses:
+- **LangChain** for orchestration
+- **ChromaDB** for vector storage/retrieval
+- **FastEmbed** with `intfloat/multilingual-e5-large` for embeddings
+- **OpenAI** (primary) + **Ollama** (fallback) for answer generation
 
-The app uses hybrid retrieval (dense embeddings + BM25), provides citations, and handles out-of-scope questions gracefully.
+---
 
-## 1) Setup
+## 1) Prerequisites
+
+- Python **3.11+** (you are using 3.13, that is okay)
+- `pip`
+- (Optional) OpenAI API key
+- (Optional, recommended fallback) Ollama installed locally
+
+---
+
+## 2) Project setup
+
+From project root:
 
 ```bash
 python -m venv .venv
@@ -16,190 +29,171 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Copy environment template:
+---
+
+## 3) Environment variables
+
+Create `.env` from template:
 
 ```bash
 cp .env.example .env
 ```
 
-Set environment variables in `.env`:
+Set values in `.env`:
 
 ```env
-OPENAI_API_KEY=your_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Leave empty for official OpenAI endpoint.
 OPENAI_BASE_URL=
+
+# Primary OpenAI model.
 OPENAI_MODEL=gpt-4o-mini
+
+# If primary model fails (404/access), app tries these in order.
 OPENAI_FALLBACK_MODELS=gpt-4o-mini,gpt-4o,gpt-3.5-turbo
+
+# Embeddings (free multilingual, local ONNX).
+EMBEDDING_PROVIDER=fastembed
+EMBEDDING_MODEL=intfloat/multilingual-e5-large
+
+# Ollama fallback model.
 OLLAMA_MODEL=gemma3:4b
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-Provider strategy:
-- **Primary**: OpenAI (`OPENAI_API_KEY` required)
-- **Fallback**: local Llama through Ollama
-- **Last fallback**: extractive snippets (no generation)
+### Important notes
 
-If OpenAI model returns 404, the app automatically tries fallback models from `OPENAI_FALLBACK_MODELS`.
+- If `OPENAI_BASE_URL` is set to Ollama URL (`http://localhost:11434/v1`), OpenAI models will fail with 404.
+- Keep `.env` private. Do not commit secrets.
 
-You can also choose provider mode directly in UI:
-- `Auto`
-- `OpenAI only`
-- `Llama only`
-- `Extractive only`
+---
 
-## 2) Add Knowledge Base PDFs
+## 4) Add documents
 
-Create a `data/` directory and place the three PDFs there:
+Place your PDF files in `data/`.
+
+Example:
 
 ```text
 data/
-  MTPL Product Info.pdf
-  User Regulations.pdf
-  Terms & Conditions.pdf
+  Copy of mtpl_coverage.pdf
+  Copy of mtpl_regulations.pdf
+  Copy of user_terms_conditions_filtered.pdf
 ```
 
-## 3) Run App
+> PDFs are ignored in git by `.gitignore` (`data/*.pdf`).
+
+---
+
+## 5) Run the app
 
 ```bash
-streamlit run app.py
+python -m streamlit run chat.py
 ```
 
-In the sidebar:
-1. Click **Build Index** (runs PDF extraction/chunking/embedding)
-2. Click **Reload Engine**
-3. Select **Answer Provider** mode
-4. Ask questions in chat
+Then in sidebar:
+1. Click **Build Index**
+2. (Optional) Click **Reload Engine**
+3. Select provider mode
+4. Ask questions
 
-## 4) Architecture Overview
+---
 
-### Document processing
-- PDF extraction via `pypdf`
-- Text normalization (whitespace/artifact cleanup)
-- Chunking with overlap to preserve context
-- Metadata per chunk: `source`, `page`, `heading`, `chunk_id`
+## 6) Provider modes
 
-### Embedding + vector storage
-- Default embedding provider: `fastembed` with `intfloat/multilingual-e5-large` (free, multilingual)
-- Optional embedding provider: `openai` with `EMBEDDING_MODEL=text-embedding-3-small`
-- Fallback provider: `hashing` (minimal dependency mode)
-- You can configure via `.env`:
-  - `EMBEDDING_PROVIDER=fastembed` (recommended free default)
-  - `EMBEDDING_PROVIDER=openai` (high quality, requires API key)
-  - `EMBEDDING_PROVIDER=hashing` (safe fallback)
+- **Auto**
+  - OpenAI (with model fallback list)
+  - if unavailable -> Ollama
+  - if unavailable -> extractive fallback
 
-E5 note:
-- The app formats embeddings as `query: ...` and `passage: ...` for best E5 retrieval quality.
-- Retrieval quality improvements included:
-  - section-aware chunking (heading + body)
-  - multilingual query variants for insurance intent
-  - heading-aware ranking bonus
-- Dense vectors saved to `index/kb_index.npz`
-- Chunk metadata saved to `index/chunks.json`
+- **OpenAI only**
+  - uses only OpenAI models
 
-### Retrieval mechanism
-- **Hybrid retrieval**:
-  - Dense cosine similarity over normalized embeddings
-  - Sparse BM25 lexical scoring (`rank-bm25`)
-- Final ranking: weighted fusion
-  - `final = alpha*dense + (1-alpha)*sparse` with default `alpha=0.65`
+- **Ollama only**
+  - uses local Ollama model
 
-### Response generation
-- LLM synthesis via OpenAI (primary)
-- Automatic fallback to local Llama via Ollama if OpenAI is unavailable
-- Grounding prompt enforces: “answer only from snippets”
-- Mandatory citation format `[n]` tied to retrieved snippets
-- Structured answer protocol: model returns JSON claims with citation indexes, then app validates each claim against cited snippets before rendering final bullets
+- **Extractive only**
+  - no LLM synthesis, only top snippets
 
-### Out-of-scope handling
-- Confidence gate on top retrieval score
-- Low-score queries return a graceful “not found in provided docs” response
+The app shows active config in sidebar:
+- `OPENAI_MODEL=...`
+- `OPENAI_BASE_URL=...`
+- `OLLAMA_MODEL=...`
 
-## 5) Demonstration Queries (document-specific)
+---
 
-Run these after indexing to verify retrieval by source:
+## 7) Ollama setup (fallback)
 
-1. **MTPL Product Info**
-   - “What risks are covered under MTPL and what are the key exclusions?”
-2. **User Regulations**
-   - “What are the policyholder’s obligations when reporting a claim?”
-3. **Terms & Conditions**
-   - “Under which conditions can the insurer deny a payout?”
-
-Expected behavior:
-- Answers include source citations like `[1] [2]`
-- Evidence panel shows page-level chunk provenance
-- Evidence panel also shows retrieval query variants for debugging
-- Optional: enable **Translate evidence snippets** in sidebar to view evidence in question language
-
-## 6) Evaluation Proposal
-
-Use a small gold dataset (20–50 queries) with known expected answers and source locations.
-
-### Retrieval metrics
-- **Precision@k**: fraction of top-k chunks that are relevant
-- **MRR**: rank quality of first relevant chunk
-- **Recall@k**: whether at least one gold chunk appears in top-k
-
-### Generation metrics
-- **Answer faithfulness** (LLM-as-judge or human): does answer stay within retrieved evidence?
-- **Answer relevance**: does answer address user intent?
-- **Citation correctness**: do cited snippets support each claim?
-
-### Performance metrics
-- End-to-end latency (p50/p95)
-- Retrieval latency vs generation latency breakdown
-
-### Suggested acceptance thresholds
-- Precision@5 >= 0.7
-- MRR >= 0.75
-- p95 latency < 3s (local embedding cache + fast model)
-
-## 7) Notes / Next Improvements
-
-- Add cross-encoder reranker for improved top-k ordering
-- Add multilingual embeddings if documents/questions are multilingual
-- Add automated evaluation script with CSV test set
-- Add conversation memory with query rewriting for follow-up questions
-
-## 8) Llama Fallback Setup (Ollama)
-
-Install Ollama and pull a model (recommended: `gemma3:4b`):
+Start Ollama and pull model:
 
 ```bash
 ollama serve
 ollama pull gemma3:4b
 ```
 
-Then run the Streamlit app normally. If OpenAI fails/unavailable, the app automatically uses Ollama.
+Alternative models:
+- `qwen2.5:7b` (better multilingual reasoning, more RAM)
+- `mistral:7b`
 
-Alternative Ollama models for multilingual quality:
-- `qwen2.5:7b` (better multilingual reasoning, needs more RAM)
-- `mistral:7b` (solid general fallback)
+---
 
-## 9) Multilingual (Hungarian) Troubleshooting
+## 8) Typical usage flow
 
-If answers incorrectly return "not found":
+1. Put PDFs in `data/`
+2. Build index
+3. Ask questions like:
+   - `Where is insurance covered?`
+   - `What is the maximum coverage for property damage?`
+   - `Is driving under the influence of alcohol covered?`
 
-1. Rebuild index after model change (important):
-   - delete `index/` folder
-   - click **Build Index** again
-2. In UI lower **Out-of-scope threshold** (e.g. `0.05`)
-3. Increase **Top-K passages** (e.g. `8`–`10`)
-4. Try asking in the same language as the PDF (Hungarian)
+4. Open **Retrieved evidence** panel to inspect source/page and relevance.
 
-Reason: multilingual text benefits from robust tokenization and less strict OOS filtering. If quality is still low, switch to `EMBEDDING_PROVIDER=openai` and rebuild index.
+---
 
-## 10) Fix for "meta tensor" error
+## 9) Troubleshooting
 
-If you saw an error like:
+### A) OpenAI 404 model not found
 
-`Cannot copy out of meta tensor; no data!`
+- Verify available models:
 
-it came from the local `sentence-transformers/torch` stack in your environment. The app now defaults to `EMBEDDING_PROVIDER=fastembed` (ONNX-based), which avoids that issue.
+```bash
+curl https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
+```
 
-After pulling latest changes:
+- Set `OPENAI_MODEL` to one from your list (e.g. `gpt-4o-mini`)
+- Ensure `OPENAI_BASE_URL` is empty or official OpenAI URL
 
-1. Delete old index folder: `rm -rf index`
-2. Rebuild index in app (**Build Index**)
-3. Reload engine
+### B) Guardrail triggers too often
 
-If you want higher retrieval quality later, set `EMBEDDING_PROVIDER=openai` in `.env` and rebuild index.
+- Lower **Min relevance score** in UI (e.g. `0.10`)
+- Increase `Top-K`
+- Rebuild index
+
+### C) Slow responses on Ollama
+
+- Use smaller/faster model (`gemma3:4b`)
+- Reduce `Top-K`
+- Use `OpenAI only` for faster generation
+
+### D) Retrieval misses due to typos
+
+`chat.py` includes lightweight query normalization (`insurence -> insurance`, `county -> country`).
+
+---
+
+## 10) Files and directories
+
+- `chat.py` - main Streamlit app (LangChain + Chroma)
+- `data/` - source PDFs
+- `chroma_db/` - local vector DB persistence
+- `.env` - local secrets/config (not committed)
+- `.env.example` - safe template
+
+---
+
+## 11) Security checklist
+
+- Never commit real API keys
+- If key is exposed, rotate immediately
+- Keep `.env` in `.gitignore`
