@@ -201,9 +201,3 @@ curl https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
 - `.env.example` - safe template
 
 ---
-
-## 11) Security checklist
-
-- Never commit real API keys
-- If key is exposed, rotate immediately
-- Keep `.env` in `.gitignore`
