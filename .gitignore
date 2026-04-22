@@ -6,6 +6,5 @@ __pycache__/
 .DS_Store
 .env
 index/
-chroma_db/
 data/*.pdf
 .idea/
