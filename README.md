@@ -8,6 +8,10 @@ This project uses:
 - **FastEmbed** with `intfloat/multilingual-e5-large` for embeddings
 - **OpenAI** (primary) + **Ollama** (fallback) for answer generation
 
+Retrieval strategy:
+- Dense retrieval from Chroma (FastEmbed vectors)
+- Lightweight reranking (dense score + lexical overlap blend)
+
 ---
 
 ## 1) Prerequisites

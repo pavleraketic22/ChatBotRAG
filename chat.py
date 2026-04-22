@@ -37,16 +37,34 @@ ProviderMode = Literal["Auto", "OpenAI only", "Ollama only", "Extractive only"]
 
 
 def clean_text(text: str) -> str:
-    """Normalize whitespace artifacts from PDF text."""
-
     text = text.replace("\x00", " ")
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
-def detect_language(question: str) -> str:
-    """Return answer language name based on query text."""
+def tokenize(text: str) -> list[str]:
+    return [tok for tok in re.findall(r"\b[\w]+\b", text.lower(), flags=re.UNICODE) if len(tok) > 1]
 
+
+def lexical_overlap(query: str, doc_text: str) -> float:
+    q = set(tokenize(query))
+    d = set(tokenize(doc_text))
+    if not q or not d:
+        return 0.0
+    return len(q & d) / len(q)
+
+
+def min_max(values: list[float]) -> list[float]:
+    if not values:
+        return []
+    v_min = min(values)
+    v_max = max(values)
+    if abs(v_max - v_min) < 1e-12:
+        return [1.0 for _ in values]
+    return [(v - v_min) / (v_max - v_min) for v in values]
+
+
+def detect_language(question: str) -> str:
     q = question.lower()
     if any(ch in q for ch in "áéíóöőúüű"):
         return "Hungarian"
@@ -57,8 +75,6 @@ def detect_language(question: str) -> str:
 
 
 class InsuranceRAG:
-    """Simple practical RAG over PDF insurance docs using Chroma + LangChain."""
-
     def __init__(self) -> None:
         self.embeddings = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
         self.vectorstore = Chroma(
@@ -81,16 +97,12 @@ class InsuranceRAG:
         )
 
     def has_index(self) -> bool:
-        """Return True if collection contains vectors."""
-
         try:
             return int(self.vectorstore._collection.count()) > 0  # noqa: SLF001
         except Exception:
             return False
 
     def build_index(self, pdf_paths: list[Path]) -> int:
-        """Create/recreate index from PDFs and return chunk count."""
-
         docs = []
         for pdf_path in pdf_paths:
             loader = PyPDFLoader(str(pdf_path))
@@ -107,7 +119,6 @@ class InsuranceRAG:
         if not chunks:
             raise RuntimeError("No chunks extracted from PDFs.")
 
-        # Recreate collection cleanly for deterministic behavior.
         self.vectorstore.delete_collection()
         self.vectorstore = Chroma.from_documents(
             documents=chunks,
@@ -119,8 +130,6 @@ class InsuranceRAG:
 
     @staticmethod
     def _normalize_query(question: str) -> str:
-        """Lightweight typo and intent normalization for retrieval."""
-
         q = question.strip().lower()
         replacements = {
             "insurence": "insurance",
@@ -135,32 +144,32 @@ class InsuranceRAG:
         return q
 
     def retrieve(self, question: str, top_k: int = 6) -> list[tuple]:
-        """Return list of (Document, normalized_relevance_0_to_1)."""
-
         q = self._normalize_query(question)
         # Use raw score API and normalize ourselves.
-        raw = self.vectorstore.similarity_search_with_score(q, k=top_k)
+        candidate_k = min(max(top_k * 4, top_k), 32)
+        raw = self.vectorstore.similarity_search_with_score(q, k=candidate_k)
         if not raw:
             return []
 
         raw_scores = [float(score) for _, score in raw]
-        s_min = min(raw_scores)
-        s_max = max(raw_scores)
-        if abs(s_max - s_min) < 1e-12:
-            norm_scores = [1.0 for _ in raw_scores]
-        else:
-            # In Chroma + FastEmbed this score behaves like similarity (higher is better),
-            # although values may be outside [0,1]. Normalize to [0,1] for guardrails/UI.
-            norm_scores = [(s - s_min) / (s_max - s_min) for s in raw_scores]
+        dense_n = min_max(raw_scores)
 
-        # Sort by normalized relevance descending.
-        merged = [(doc, rel) for (doc, _), rel in zip(raw, norm_scores)]
+        overlap_scores = [lexical_overlap(q, doc.page_content) for doc, _ in raw]
+        overlap_n = min_max(overlap_scores)
+
+        dense_w = 0.6
+        lexical_w = 0.4
+
+        merged = []
+        for i, (doc, _) in enumerate(raw):
+            final = dense_w * dense_n[i] + lexical_w * overlap_n[i]
+            merged.append((doc, final))
+
         merged.sort(key=lambda x: x[1], reverse=True)
-        return merged
+        return merged[:top_k]
 
     @staticmethod
     def _extractive_answer(question: str, retrieved: list[tuple]) -> str:
-        """Fallback answer without LLM synthesis."""
 
         bullets = []
         for i, (doc, _) in enumerate(retrieved[:3], start=1):
@@ -176,8 +185,6 @@ class InsuranceRAG:
         )
 
     def generate(self, question: str, retrieved: list[tuple], provider_mode: ProviderMode) -> tuple[str, str]:
-        """Generate answer and return (text, provider_used)."""
-
         if not retrieved:
             return "No evidence retrieved.", "none"
 
@@ -209,8 +216,6 @@ class InsuranceRAG:
             return self._extractive_answer(question, retrieved), "extractive"
 
         def invoke_openai_with_fallback() -> tuple[str, str]:
-            """Try configured OpenAI model, then fallback models."""
-
             candidate_models = [OPENAI_MODEL] + [m for m in OPENAI_FALLBACK_MODELS if m != OPENAI_MODEL]
             last_error = "unknown"
             for model_name in candidate_models:
@@ -249,7 +254,6 @@ class InsuranceRAG:
                 {"question": question, "context": context, "language": language}
             ), "ollama"
 
-        # Auto: OpenAI -> Ollama -> Extractive
         if self.openai_llm is not None:
             try:
                 return invoke_openai_with_fallback()
@@ -265,16 +269,12 @@ class InsuranceRAG:
 
 
 def list_pdfs() -> list[Path]:
-    """List PDF files in data directory."""
-
     if not DATA_DIR.exists():
         return []
     return sorted([p for p in DATA_DIR.iterdir() if p.is_file() and p.suffix.lower() == ".pdf"])
 
 
 def init_engine() -> tuple[InsuranceRAG | None, str | None]:
-    """Initialize RAG engine and return possible error."""
-
     try:
         engine = InsuranceRAG()
         return engine, None
@@ -283,11 +283,9 @@ def init_engine() -> tuple[InsuranceRAG | None, str | None]:
 
 
 def main() -> None:
-    """Streamlit app entrypoint."""
-
     load_dotenv()
-    st.set_page_config(page_title="Insurance Chat (LangChain + Chroma)", layout="wide")
-    st.title("🚗 Insurance Chat (LangChain + ChromaDB)")
+    st.set_page_config(page_title="Insurance ChatBot", layout="wide")
+    st.title("Insurance ChatBot")
 
     if "engine" not in st.session_state:
         st.session_state["engine"], st.session_state["engine_error"] = init_engine()
