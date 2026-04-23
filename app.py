@@ -19,15 +19,28 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 CHROMA_DIR = BASE_DIR / "chroma_db"
-
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
+
+
+def _get_secret(key: str, nested: str = "openai", fallback: str | None = None) -> str | None:
+    try:
+        if nested in st.secrets and key in st.secrets[nested]:
+            return st.secrets[nested][key]
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    return fallback
+
+OPENAI_MODEL = os.getenv("OPENAI_MODEL") or _get_secret("model") or "gpt-4.1-mini"
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL") or _get_secret("OPENAI_BASE_URL")
 OPENAI_FALLBACK_MODELS = [
     m.strip()
     for m in os.getenv("OPENAI_FALLBACK_MODELS", "gpt-4o-mini,gpt-4o,gpt-3.5-turbo").split(",")
     if m.strip()
 ]
+
+
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 ProviderMode = Literal["Auto", "OpenAI only", "Ollama only", "Extractive only"]
@@ -101,12 +114,8 @@ class InsuranceRAG:
             import streamlit as st
             if "OPENAI_API_KEY" in st.secrets:
                 return st.secrets["OPENAI_API_KEY"]
-            # Nested pod "openai"
-            if "openai" in st.secrets:
-                openai_secrets = st.secrets["openai"]
-                for k in ("OPENAI_API_KEY", "api_key", "key"):
-                    if k in openai_secrets:
-                        return openai_secrets[k]
+            if "openai" in st.secrets and "OPENAI_API_KEY" in st.secrets["openai"]:
+                return st.secrets["openai"]["OPENAI_API_KEY"]
         except Exception:
             pass
         try:
