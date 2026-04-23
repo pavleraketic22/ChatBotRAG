@@ -95,19 +95,22 @@ class InsuranceRAG:
         )
 
     def _resolve_openai_key(self) -> str | None:
-        # 1. Env var (lokalni dev)
         if key := os.getenv("OPENAI_API_KEY"):
             return key
-        # 2. Streamlit Cloud secrets
         try:
             import streamlit as st
+            # Pokušaj direktno
             if "OPENAI_API_KEY" in st.secrets:
                 return st.secrets["OPENAI_API_KEY"]
+            # Pokušaj nested pod "openai"
+            if "openai" in st.secrets and "OPENAI_API_KEY" in st.secrets["openai"]:
+                return st.secrets["openai"]["OPENAI_API_KEY"]
+            # Pokušaj stari naziv ako si ga tako nazvao
+            if "api_key" in st.secrets:
+                return st.secrets["api_key"]
         except Exception:
             pass
-        # 3. Session state (user je uneo kroz UI)
         try:
-            import streamlit as st
             if key := st.session_state.get("user_openai_api_key"):
                 return key
         except Exception:
