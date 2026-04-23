@@ -113,9 +113,9 @@ class InsuranceRAG:
         try:
             import streamlit as st
             if "OPENAI_API_KEY" in st.secrets:
-                return st.secrets["OPENAI_API_KEY"]
+                return st.secrets.OPENAI_API_KEY
             if "openai" in st.secrets and "OPENAI_API_KEY" in st.secrets["openai"]:
-                return st.secrets["openai"]["OPENAI_API_KEY"]
+                return st.secrets.openai.OPENAI_API_KEY
         except Exception:
             pass
         try:
