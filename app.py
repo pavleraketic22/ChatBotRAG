@@ -23,7 +23,7 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large")
 
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL")  or "gpt-4.1-mini"
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
+OPENAI_BASE_URL = "https://api.openai.com/v1"
 OPENAI_FALLBACK_MODELS = [
     m.strip()
     for m in os.getenv("OPENAI_FALLBACK_MODELS", "gpt-4o-mini,gpt-4o,gpt-3.5-turbo").split(",")
@@ -242,7 +242,7 @@ class InsuranceRAG:
             last_error = "unknown"
             for model_name in candidate_models:
                 try:
-                    kwargs = {"model": model_name, "temperature": 0.1}
+                    kwargs = {"model": model_name, "temperature": 0.1, "api_key": api_key}
                     if OPENAI_BASE_URL:
                         kwargs["base_url"] = OPENAI_BASE_URL
                     llm = ChatOpenAI(**kwargs)
@@ -344,7 +344,7 @@ def main() -> None:
             ProviderMode,
             st.radio(
                 "Provider",
-                options=["Auto", "OpenAI only", "Ollama only", "Extractive only"],
+                options=["Auto", "OpenAI only","Extractive only"],
                 index=0,
             ),
         )
