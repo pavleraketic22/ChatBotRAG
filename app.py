@@ -30,7 +30,6 @@ OPENAI_FALLBACK_MODELS = [
 ]
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OPENAI_API_KEY = st.secrets.get("api_key")
 ProviderMode = Literal["Auto", "OpenAI only", "Ollama only", "Extractive only"]
 
 
@@ -104,6 +103,13 @@ class InsuranceRAG:
             import streamlit as st
             if "OPENAI_API_KEY" in st.secrets:
                 return st.secrets["OPENAI_API_KEY"]
+        except Exception:
+            pass
+        # 3. Session state (user je uneo kroz UI)
+        try:
+            import streamlit as st
+            if key := st.session_state.get("user_openai_api_key"):
+                return key
         except Exception:
             pass
         return None
@@ -241,6 +247,7 @@ class InsuranceRAG:
             return self._extractive_answer(question, retrieved), "extractive"
 
         def invoke_openai_with_fallback() -> tuple[str, str]:
+            api_key = self._resolve_openai_key()
             candidate_models = [OPENAI_MODEL] + [m for m in OPENAI_FALLBACK_MODELS if m != OPENAI_MODEL]
             last_error = "unknown"
             for model_name in candidate_models:
@@ -321,6 +328,19 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Knowledge Base")
+        # API key input — prikazuje se samo ako key nije već dostupan
+        engine: InsuranceRAG = st.session_state["engine"]
+        has_key = bool(engine and engine._resolve_openai_key())
+
+        if not has_key:
+            user_key = st.text_input("OpenAI API Key", type="password", placeholder="sk-...")
+            if user_key and user_key != st.session_state.get("user_openai_api_key"):
+                st.session_state["user_openai_api_key"] = user_key
+                # Reinicijalizuj engine sa novim ključem
+                st.session_state["engine"], st.session_state["engine_error"] = init_engine()
+                st.success("API key set, engine reloaded.")
+        else:
+            st.success("✓ OpenAI API key loaded")
         pdfs = list_pdfs()
         if pdfs:
             for p in pdfs:
