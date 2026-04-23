@@ -1,11 +1,9 @@
 from __future__ import annotations
-
 import os
 import re
 import time
 from pathlib import Path
 from typing import Literal, cast
-
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
@@ -79,8 +77,14 @@ class InsuranceRAG:
         self.vectorstore = None
 
         self.openai_llm = None
-        if os.getenv("OPENAI_API_KEY"):
-            kwargs = {"model": OPENAI_MODEL, "temperature": 0.1}
+        api_key = self._resolve_openai_key()
+
+        if api_key:
+            kwargs = {
+                "model": OPENAI_MODEL,
+                "temperature": 0.1,
+                "api_key": api_key,
+            }
             if OPENAI_BASE_URL:
                 kwargs["base_url"] = OPENAI_BASE_URL
             self.openai_llm = ChatOpenAI(**kwargs)
@@ -90,6 +94,19 @@ class InsuranceRAG:
             base_url=OLLAMA_BASE_URL,
             temperature=0.1,
         )
+
+    def _resolve_openai_key(self) -> str | None:
+        # 1. Env var (lokalni dev)
+        if key := os.getenv("OPENAI_API_KEY"):
+            return key
+        # 2. Streamlit Cloud secrets
+        try:
+            import streamlit as st
+            if "OPENAI_API_KEY" in st.secrets:
+                return st.secrets["OPENAI_API_KEY"]
+        except Exception:
+            pass
+        return None
 
     def get_embeddings(self):
         if self.embeddings is None:
@@ -154,7 +171,6 @@ class InsuranceRAG:
 
     def retrieve(self, question: str, top_k: int = 6) -> list[tuple]:
         q = self._normalize_query(question)
-        # Use raw score API and normalize ourselves.
         candidate_k = min(max(top_k * 4, top_k), 32)
         raw = self.get_vectorstore().similarity_search_with_score(q, k=candidate_k)
         if not raw:
