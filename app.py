@@ -322,9 +322,8 @@ def main() -> None:
             user_key = st.text_input("OpenAI API Key", type="password", placeholder="sk-...")
             if user_key and user_key != st.session_state.get("user_openai_api_key"):
                 st.session_state["user_openai_api_key"] = user_key
-                # Reinicijalizuj engine sa novim ključem
-                st.session_state["engine"], st.session_state["engine_error"] = get_engine()
-                st.success("API key set, engine reloaded.")
+                get_engine.clear()
+                st.rerun()
         else:
             st.success("✓ OpenAI API key loaded")
         pdfs = list_pdfs()
