@@ -295,8 +295,8 @@ def list_pdfs() -> list[Path]:
         return []
     return sorted([p for p in DATA_DIR.iterdir() if p.is_file() and p.suffix.lower() == ".pdf"])
 
-
-def init_engine() -> tuple[InsuranceRAG | None, str | None]:
+@st.cache_resource(show_spinner="Loading engine...")
+def get_engine() -> tuple[InsuranceRAG | None, str | None]:
     try:
         engine = InsuranceRAG()
         return engine, None
@@ -309,8 +309,7 @@ def main() -> None:
     st.set_page_config(page_title="Insurance ChatBot", layout="wide")
     st.title("Insurance ChatBot")
 
-    if "engine" not in st.session_state:
-        st.session_state["engine"], st.session_state["engine_error"] = init_engine()
+    engine, engine_error = get_engine()
     if "messages" not in st.session_state:
         st.session_state["messages"] = []
 
@@ -327,7 +326,7 @@ def main() -> None:
             if user_key and user_key != st.session_state.get("user_openai_api_key"):
                 st.session_state["user_openai_api_key"] = user_key
                 # Reinicijalizuj engine sa novim ključem
-                st.session_state["engine"], st.session_state["engine_error"] = init_engine()
+                st.session_state["engine"], st.session_state["engine_error"] = get_engine()
                 st.success("API key set, engine reloaded.")
         else:
             st.success("✓ OpenAI API key loaded")
@@ -352,8 +351,8 @@ def main() -> None:
         col1, col2 = st.columns(2)
         with col2:
             if st.button("Reload Engine"):
-                st.session_state["engine"], st.session_state["engine_error"] = init_engine()
-                st.success("Engine reloaded.")
+                get_engine.clear()
+                st.rerun()
 
         st.markdown("---")
         st.caption(
