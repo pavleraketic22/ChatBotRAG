@@ -313,7 +313,6 @@ def main() -> None:
     if "messages" not in st.session_state:
         st.session_state["messages"] = []
 
-    engine: InsuranceRAG | None = st.session_state["engine"]
 
     with st.sidebar:
         st.header("Knowledge Base")
