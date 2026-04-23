@@ -350,17 +350,6 @@ def main() -> None:
         )
 
         col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Build Index"):
-                if engine is None:
-                    st.error("Engine init failed.")
-                elif not pdfs:
-                    st.error("Add PDFs to data/ first.")
-                else:
-                    with st.spinner("Building index..."):
-                        count = engine.build_index(pdfs)
-                    st.success(f"Index built with {count} chunks.")
-
         with col2:
             if st.button("Reload Engine"):
                 st.session_state["engine"], st.session_state["engine_error"] = init_engine()
