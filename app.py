@@ -331,6 +331,7 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Knowledge Base")
+        st.write("secrets keys:", list(st.secrets.keys()))
         # API key input — prikazuje se samo ako key nije već dostupan
         engine: InsuranceRAG = st.session_state["engine"]
         has_key = bool(engine and engine._resolve_openai_key())
