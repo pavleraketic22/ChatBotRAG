@@ -99,15 +99,14 @@ class InsuranceRAG:
             return key
         try:
             import streamlit as st
-            # Pokušaj direktno
             if "OPENAI_API_KEY" in st.secrets:
                 return st.secrets["OPENAI_API_KEY"]
-            # Pokušaj nested pod "openai"
-            if "openai" in st.secrets and "OPENAI_API_KEY" in st.secrets["openai"]:
-                return st.secrets["openai"]["OPENAI_API_KEY"]
-            # Pokušaj stari naziv ako si ga tako nazvao
-            if "api_key" in st.secrets:
-                return st.secrets["api_key"]
+            # Nested pod "openai"
+            if "openai" in st.secrets:
+                openai_secrets = st.secrets["openai"]
+                for k in ("OPENAI_API_KEY", "api_key", "key"):
+                    if k in openai_secrets:
+                        return openai_secrets[k]
         except Exception:
             pass
         try:
@@ -331,7 +330,7 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Knowledge Base")
-        st.write("secrets keys:", list(st.secrets.keys()))
+        st.write("openai secrets keys:", list(st.secrets["openai"].keys()))
         # API key input — prikazuje se samo ako key nije već dostupan
         engine: InsuranceRAG = st.session_state["engine"]
         has_key = bool(engine and engine._resolve_openai_key())
